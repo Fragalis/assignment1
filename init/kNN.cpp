@@ -5,7 +5,7 @@
 
 Dataset::Dataset() {
     labels = new MyList<string>();
-    data = new MyList<MyList<int>*>();
+    data = new MyList<List<int>*>();
 };
 Dataset::~Dataset() {
     labels->clear();
@@ -16,20 +16,44 @@ Dataset::~Dataset() {
 };
 
 Dataset::Dataset(const Dataset& other) {
-    for(int i = 0; i < other.labels->length(); ++i) {
-        labels->push_back(other.labels->get(i));
+    labels = new MyList<string>();
+    data = new MyList<List<int>*>();
+    int nRows, nCols;
+    other.getShape(nRows, nCols);
+    for(int i = 0; i < nCols; ++i) {
+        labels->push_back(other.getLabels()->get(i));
     }
-    for(int i = 0; i < other.data->length(); ++i) {
+    for(int i = 0; i < nRows; ++i) {
         MyList<int>* row = new MyList<int>();
-        for(int j = 0; j < other.data->get(i)->length(); ++j) {
-            row->push_back(other.data->get(i)->get(j));
+        for(int j = 0; j < nCols; ++j) {
+            row->push_back(other.getData()->get(i)->get(j));
         }
         data->push_back(row);
     }
 };
 Dataset& Dataset::operator=(const Dataset& other) {
-    Dataset *dataset = new Dataset(other);
-    return *dataset;
+    if(this != &other) {
+        labels->clear();
+        for(int i = 0; i < data->length(); ++i) data->get(i)->clear();
+        data->clear();
+        delete labels;
+        delete data;
+        labels = new MyList<string>();
+        data = new MyList<List<int>*>();
+        int nRows, nCols;
+        other.getShape(nRows, nCols);
+        for(int i = 0; i < nCols; ++i) {
+            labels->push_back(other.getLabels()->get(i));
+        }
+        for(int i = 0; i < nRows; ++i) {
+            MyList<int>* row = new MyList<int>();
+            for(int j = 0; j < nCols; ++j) {
+                row->push_back(other.getData()->get(i)->get(j));
+            }
+            data->push_back(row);
+        }
+    }
+    return *this;
 };
 bool Dataset::loadFromCSV(const char* fileName) {
     fstream file;
@@ -74,13 +98,13 @@ void Dataset::printHead(int nRows = 5, int nCols = 5) const {
     cout << endl;
 
     // Print data:
-    for(int i = 0; i < nc; ++i) {
+    for(int i = 0; i < nr; ++i) {
         cout << data->get(i)->get(0);
-        for(int j = 1; j < nr; ++j) {
+        for(int j = 1; j < nc; ++j) {
             cout << " ";
             cout << data->get(i)->get(j);
         }
-        cout << endl;
+        if(i < nr - 1) cout << endl;
     }
 };
 void Dataset::printTail(int nRows = 5, int nCols = 5) const {
@@ -101,13 +125,13 @@ void Dataset::printTail(int nRows = 5, int nCols = 5) const {
     cout << endl;
 
     // Print data:
-    for(int i = nc - 1; i >= 0; --i) {
-        for(int j = nr - 1; j > 0; --j) {
+    for(int i = nr - 1; i >= 0; --i) {
+        for(int j = nc - 1; j > 0; --j) {
             cout << data->get(rowlen - 1 - i)->get(collen - 1 - j);
             cout << " ";
         }
         cout << data->get(rowlen - 1 - i)->get(collen - 1);
-        cout << endl;
+        if(i > 0) cout << endl;
     }
 };
 void Dataset::getRow(int& nRows) const {
@@ -149,45 +173,111 @@ bool Dataset::drop(int axis = 0, int index = 0, std::string columns = "") {
     return false;
 };
 Dataset Dataset::extract(int startRow = 0, int endRow = -1, int startCol = 0, int endCol = -1) const {
-    Dataset* result = new Dataset();
-    result->data = getData();
-    result->labels = getLabels();
+    Dataset result;
     int nCols = 0, nRows = 0;
-    result->getShape(nRows, nCols);
-    cout << nRows << " " << nCols << endl;
-    // Row removal
-    endRow = (endRow == -1)? nRows : endRow;
-    endCol = (endCol == -1)? nCols : endCol;
-    for(int i = 0; i < nRows; ++i) {
-        if(i < startRow) result->drop(0, 0, "");
-        if(i > endRow) result->drop(0, endRow + 1 - startRow, "");
-        if(i < startRow || i > endRow) {
-            // Delete every instance
-            cout << "Remove row " << i << endl;
+    getShape(nRows, nCols);
+    endRow = (endRow == -1)? nRows - 1 : endRow;
+    endCol = (endCol == -1)? nCols - 1 : endCol;
+    for(int i = startRow; i <= endRow; ++i) {
+        List<int>* row = new MyList<int>();
+        for(int j = startCol; j <= endCol; j++) {
+            row->push_back(data->get(i)->get(j));
         }
+        result.data->push_back(row);
     }
-    result->getShape(nRows, nCols);
-    cout << nRows << " " << nCols << endl;
-    for(int i = 0; i < nCols; ++i) {
-        if(i < startCol) {
-            for(int j = 0; j < nRows; ++j) result->getData()->get(j)->remove(0);
-            cout << "Remove col " << i << endl;
-            result->getLabels()->remove(0);
-        }
-        if(i > endCol) {
-            for(int j = 0; j < nRows; ++j) result->getData()->get(j)->remove(endCol + 1 - startCol);
-            cout << "Remove col " << i << endl;
-            result->getLabels()->remove(endCol + 1 - startCol);
-        }
+    for(int j = startCol; j <= endCol; j++) {
+        result.labels->push_back(labels->get(j));
     }
-    result->getShape(nRows, nCols);
-    cout << nRows << " " << nCols << endl;
-    return *result;
+    return result;
 };
 
-MyList<MyList<int>*>* Dataset::getData() const {
+List<List<int>*>* Dataset::getData() const {
     return this->data;
 };
-MyList<string>* Dataset::getLabels() const {
+List<string>* Dataset::getLabels() const {
     return this->labels;
+};
+
+double dist(const List<int>& a, const List<int>& b) {
+    double sum = 0.0;
+    int length = a.length();
+    for(int i = 0; i < length; ++i) {
+        sum += pow(a.get(i) - b.get(i), 2);
+    }
+    return sqrt(sum);
+};
+
+void kNN::fit(const Dataset& X_train, const Dataset& y_train) {
+    this->X_train = X_train;
+    this->y_train = y_train;
+};
+
+Dataset kNN::predict(const Dataset& X_test) {
+    Dataset y_pred;
+    y_pred.getLabels()->push_back("label");
+    int test_row = 0;
+    int train_row = 0;
+    X_train.getRow(train_row);
+    X_test.getRow(test_row);
+    MyList<double> distance_list;
+    MyList<int> label_list;
+    for(int i = 0; i < test_row; ++i) {
+        distance_list.clear();
+        label_list.clear();
+        for(int j = 0; j < train_row; ++j) {
+            int label = y_train.getData()->get(j)->get(0);
+            double distance = dist(*X_test.getData()->get(i), *X_train.getData()->get(j));
+            // finding index
+            int index = 0;
+            for(; index < distance_list.length(); ++index) {
+                if(distance_list.get(index) > distance) break;
+            }
+            // adding stuff
+            distance_list.insert(index, distance);
+            label_list.insert(index, label);
+            // remove end if length > k
+            // we only need k elements
+            if(distance_list.length() > k) distance_list.remove(k);
+            if(label_list.length() > k) label_list.remove(k);
+        }
+        int count[10] = {0,0,0,0,0,0,0,0,0,0};
+        for(int pos = 0; pos < label_list.length(); ++pos) {
+            ++count[label_list.get(pos)];
+        }
+        int max_count = 0, num = 0;
+        for(int pos = 0; pos < 10; ++pos) {
+            if(max_count < count[pos]) {
+                num = pos;
+                max_count = count[pos];
+            }
+        }
+        MyList<int> *pred = new MyList<int>();
+        pred->push_back(num);
+        y_pred.getData()->push_back(pred);
+    }
+    return y_pred;
+};
+
+double kNN::score(const Dataset& y_test, const Dataset& y_pred) {
+    int test_count = 0;
+    y_test.getRow(test_count);
+    int correct_count = 0;
+    List<List<int>*>* test_data = y_test.getData();
+    List<List<int>*>* pred_data = y_pred.getData();
+    for(int i = 0; i < test_count; ++i) {
+        if(test_data->get(i)->get(0) == pred_data->get(i)->get(0)) ++correct_count;
+    }
+    return (double)correct_count / (double)test_count;
+};
+
+void train_test_split(Dataset& X, Dataset& y, double test_size, 
+                        Dataset& X_train, Dataset& X_test, Dataset& y_train, Dataset& y_test)
+{
+    int number_of_dataset = 0;
+    y.getRow(number_of_dataset);
+    int train_set_count = number_of_dataset - (int)((double)number_of_dataset * test_size + 0.999);
+    X_train = X.extract(0, train_set_count - 1, 0, -1);
+    X_test = X.extract(train_set_count, -1, 0, -1);
+    y_train = y.extract(0, train_set_count - 1, 0, -1);
+    y_test = y.extract(train_set_count, -1, 0, -1);
 };

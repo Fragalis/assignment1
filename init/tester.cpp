@@ -290,7 +290,7 @@ Dataset::Dataset(const Dataset& other) {
 };
 
 Dataset& Dataset::operator=(const Dataset& other) {
-    cout << "Assignment Operator" << endl;
+    // cout << "Assignment Operator" << endl;
     if(this != &other) {
         labels->clear();
         for(int i = 0; i < data->length(); ++i) data->get(i)->clear();
@@ -357,13 +357,13 @@ void Dataset::printHead(int nRows = 5, int nCols = 5) const {
     cout << endl;
 
     // Print data:
-    for(int i = 0; i < nc; ++i) {
+    for(int i = 0; i < nr; ++i) {
         cout << data->get(i)->get(0);
-        for(int j = 1; j < nr; ++j) {
+        for(int j = 1; j < nc; ++j) {
             cout << " ";
             cout << data->get(i)->get(j);
         }
-        cout << endl;
+        if(i < nr - 1) cout << endl;
     }
 };
 void Dataset::printTail(int nRows = 5, int nCols = 5) const {
@@ -384,13 +384,13 @@ void Dataset::printTail(int nRows = 5, int nCols = 5) const {
     cout << endl;
 
     // Print data:
-    for(int i = nc - 1; i >= 0; --i) {
-        for(int j = nr - 1; j > 0; --j) {
+    for(int i = nr - 1; i >= 0; --i) {
+        for(int j = nc - 1; j > 0; --j) {
             cout << data->get(rowlen - 1 - i)->get(collen - 1 - j);
             cout << " ";
         }
         cout << data->get(rowlen - 1 - i)->get(collen - 1);
-        cout << endl;
+        if(i > 0) cout << endl;
     }
 };
 void Dataset::getRow(int& nRows) const {
@@ -507,35 +507,35 @@ public:
     };
     Dataset predict(const Dataset& X_test) {
         Dataset y_pred;
+        y_pred.getLabels()->push_back("label");
         int test_row = 0;
         int train_row = 0;
         X_train.getRow(train_row);
         X_test.getRow(test_row);
+        MyList<double> distance_list;
+        MyList<int> label_list;
         for(int i = 0; i < test_row; ++i) {
-            MyList<double> *distance_list = new MyList<double>();
-            MyList<int> *label_list = new MyList<int>();
+            distance_list.clear();
+            label_list.clear();
             for(int j = 0; j < train_row; ++j) {
+                int label = y_train.getData()->get(j)->get(0);
                 double distance = dist(*X_test.getData()->get(i), *X_train.getData()->get(j));
                 // finding index
                 int index = 0;
-                for(int pos = 0; pos < distance_list->length(); ++pos) {
-                    if(distance_list->get(pos) >= distance) {
-                        index = pos;
-                        break;
-                    }
+                for(; index < distance_list.length(); ++index) {
+                    if(distance_list.get(index) > distance) break;
                 }
                 // adding stuff
-                distance_list->insert(index, distance);
-                cout << y_train.getData()->get(index)->get(0) << " ";
-                label_list->insert(index, y_train.getData()->get(index)->get(0));
+                distance_list.insert(index, distance);
+                label_list.insert(index, label);
                 // remove end if length > k
                 // we only need k elements
-                if(distance_list->length() > k) distance_list->remove(distance_list->length() - 1);
-                if(label_list->length() > k) label_list->remove(label_list->length() - 1);
+                if(distance_list.length() > k) distance_list.remove(k);
+                if(label_list.length() > k) label_list.remove(k);
             }
             int count[10] = {0,0,0,0,0,0,0,0,0,0};
-            for(int pos = 0; pos < label_list->length(); ++pos) {
-                ++count[label_list->get(pos)];
+            for(int pos = 0; pos < label_list.length(); ++pos) {
+                ++count[label_list.get(pos)];
             }
             int max_count = 0, num = 0;
             for(int pos = 0; pos < 10; ++pos) {
@@ -547,10 +547,7 @@ public:
             MyList<int> *pred = new MyList<int>();
             pred->push_back(num);
             y_pred.getData()->push_back(pred);
-            distance_list->~MyList();
-            label_list->~MyList();
         }
-        cout << endl;
         return y_pred;
     };
     double score(const Dataset& y_test, const Dataset& y_pred) {
@@ -560,10 +557,8 @@ public:
         List<List<int>*>* test_data = y_test.getData();
         List<List<int>*>* pred_data = y_pred.getData();
         for(int i = 0; i < test_count; ++i) {
-            cout << test_data->get(i)->get(0) << " ";
             if(test_data->get(i)->get(0) == pred_data->get(i)->get(0)) ++correct_count;
         }
-        cout << endl;
         return (double)correct_count / (double)test_count;
     };
 };
@@ -664,8 +659,6 @@ void kNN_tester() {
     cout << "kNN tester" << endl;
     Dataset dataset;
     dataset.loadFromCSV("mnist.csv");
-    dataset.printHead();
-    dataset.printTail();
     kNN knn;
     Dataset X_train, X_test, y_train, y_test;
     Dataset feature = dataset.extract(0, -1, 1, -1);
@@ -686,13 +679,32 @@ void kNN_tester() {
     cout << "Accuracy: " << accuracy << endl;
 }
 
-void train_test_split(Dataset& X, Dataset& y, double test_size, 
-                        Dataset& X_train, Dataset& X_test, Dataset& y_train, Dataset& y_test);
+void bkel_tester() {
+	
+    Dataset dataset;
+    dataset.loadFromCSV("mnist.csv");
+    int nRows, nCols;
 
-// Please add more or modify as needed
+    kNN knn;
+    Dataset X_train, X_test, y_train, y_test;
+    Dataset feature = dataset.extract(0, -1, 1, -1);
+    Dataset label = dataset.extract(0, -1, 0, 0);
+
+    train_test_split(feature, label, 0.2, X_train, X_test, y_train, y_test);
+    knn.fit(X_train, y_train);
+    Dataset y_pred = knn.predict(X_test);
+
+    cout << "y_pred" << endl;
+    y_pred.printHead(10, 10);
+    cout << endl;
+    cout << "y_test" << endl;
+    y_test.printHead(10, 10);
+    cout << endl;
+}
 
 int main() {
     // myList_tester();
     // dataset_tester();
-    kNN_tester();
+    // kNN_tester();
+    bkel_tester();
 }

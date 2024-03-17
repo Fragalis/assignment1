@@ -235,8 +235,8 @@ public:
 
 class Dataset {
 private:
-    MyList<string>* labels;
-    MyList<MyList<int>*>* data;
+    List<string>* labels;
+    List<List<int>*>* data;
 public:
     //You may need to define more
     Dataset();
@@ -252,16 +252,18 @@ public:
     void columns() const;
     bool drop(int axis, int index, string columns);
     Dataset extract(int startRow, int endRow, int startCol, int endCol) const;
-    MyList<MyList<int>*>* getData() const;
-    MyList<string>* getLabels() const;
+    List<List<int>*>* getData() const;
+    List<string>* getLabels() const;
 };
 
 class kNN {
 private:
     int k;
+    Dataset X_train;
+    Dataset y_train;
     //You may need to define more
 public:
-    kNN(int k = 5);
+    kNN(int k = 5): k(k) {};
     void fit(const Dataset& X_train, const Dataset& y_train);
     Dataset predict(const Dataset& X_test);
     double score(const Dataset& y_test, const Dataset& y_pred);
