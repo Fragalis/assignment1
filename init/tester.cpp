@@ -432,30 +432,47 @@ bool Dataset::drop(int axis = 0, int index = 0, std::string columns = "") {
     return false;
 };
 Dataset Dataset::extract(int startRow = 0, int endRow = -1, int startCol = 0, int endCol = -1) const {
-    Dataset* result = new Dataset(*this);
+    // Dataset* result = new Dataset(*this);
+    // int nCols = 0, nRows = 0;
+    // result->getShape(nRows, nCols);
+    // // Row removal
+    // endRow = (endRow == -1)? nRows : endRow;
+    // endCol = (endCol == -1)? nCols : endCol;
+    // for(int i = 0; i < nRows; ++i) {
+    //     if(i < startRow) result->drop(0, 0, "");
+    //     if(i > endRow) result->drop(0, endRow + 1 - startRow, "");
+    // }
+    // result->getShape(nRows, nCols);
+    // for(int i = 0; i < nCols; ++i) {
+    //     if(i < startCol) {
+    //         for(int j = 0; j < nRows; ++j) result->getData()->get(j)->remove(0);
+    //         result->getLabels()->remove(0);
+    //     }
+    //     if(i > endCol) {
+    //         for(int j = 0; j < nRows; ++j) result->getData()->get(j)->remove(endCol + 1 - startCol);
+    //         result->getLabels()->remove(endCol + 1 - startCol);
+    //     }
+    // }
+    // result->getShape(nRows, nCols);
+    // cout << "Result: " << nRows << "x" << nCols << endl;
+    // return *result;
+
+    Dataset result;
     int nCols = 0, nRows = 0;
-    result->getShape(nRows, nCols);
-    // Row removal
-    endRow = (endRow == -1)? nRows : endRow;
-    endCol = (endCol == -1)? nCols : endCol;
-    for(int i = 0; i < nRows; ++i) {
-        if(i < startRow) result->drop(0, 0, "");
-        if(i > endRow) result->drop(0, endRow + 1 - startRow, "");
-    }
-    result->getShape(nRows, nCols);
-    for(int i = 0; i < nCols; ++i) {
-        if(i < startCol) {
-            for(int j = 0; j < nRows; ++j) result->getData()->get(j)->remove(0);
-            result->getLabels()->remove(0);
+    getShape(nRows, nCols);
+    endRow = (endRow == -1)? nRows - 1 : endRow;
+    endCol = (endCol == -1)? nCols - 1 : endCol;
+    for(int i = startRow; i <= endRow; ++i) {
+        List<int>* row = new MyList<int>();
+        for(int j = startCol; j <= endCol; j++) {
+            row->push_back(data->get(i)->get(j));
         }
-        if(i > endCol) {
-            for(int j = 0; j < nRows; ++j) result->getData()->get(j)->remove(endCol + 1 - startCol);
-            result->getLabels()->remove(endCol + 1 - startCol);
-        }
+        result.data->push_back(row);
     }
-    result->getShape(nRows, nCols);
-    cout << "Result: " << nRows << "x" << nCols << endl;
-    return *result;
+    for(int j = startCol; j <= endCol; j++) {
+        result.labels->push_back(labels->get(j));
+    }
+    return result;
 };
 
 List<List<int>*>* Dataset::getData() const {
@@ -463,6 +480,15 @@ List<List<int>*>* Dataset::getData() const {
 };
 List<string>* Dataset::getLabels() const {
     return this->labels;
+};
+
+double dist(const List<int>& a, const List<int>& b) {
+    double sum = 0.0;
+    int length = a.length();
+    for(int i = 0; i < length; ++i) {
+        sum += pow(a.get(i) - b.get(i), 2);
+    }
+    return sqrt(sum);
 };
 
 class kNN {
@@ -486,36 +512,45 @@ public:
         X_train.getRow(train_row);
         X_test.getRow(test_row);
         for(int i = 0; i < test_row; ++i) {
-            MyList<double> *distance_list;
-            MyList<int> *label_list;
+            MyList<double> *distance_list = new MyList<double>();
+            MyList<int> *label_list = new MyList<int>();
             for(int j = 0; j < train_row; ++j) {
                 double distance = dist(*X_test.getData()->get(i), *X_train.getData()->get(j));
                 // finding index
                 int index = 0;
-                for(int k = 0; k < distance_list->length(); ++k) {
-                    if(distance_list->get(k) >= distance) {
-                        index = k;
+                for(int pos = 0; pos < distance_list->length(); ++pos) {
+                    if(distance_list->get(pos) >= distance) {
+                        index = pos;
                         break;
                     }
                 }
                 // adding stuff
                 distance_list->insert(index, distance);
+                cout << y_train.getData()->get(index)->get(0) << " ";
                 label_list->insert(index, y_train.getData()->get(index)->get(0));
+                // remove end if length > k
+                // we only need k elements
                 if(distance_list->length() > k) distance_list->remove(distance_list->length() - 1);
                 if(label_list->length() > k) label_list->remove(label_list->length() - 1);
             }
             int count[10] = {0,0,0,0,0,0,0,0,0,0};
-            for(int k = 0; k < label_list->length(); ++k) {
-                ++count[label_list->get(k)];
+            for(int pos = 0; pos < label_list->length(); ++pos) {
+                ++count[label_list->get(pos)];
             }
-            int max_count = 0;
-            for(int k = 0; k < 10; ++k) {
-                if(max_count < count[k]) max_count = count[k];
+            int max_count = 0, num = 0;
+            for(int pos = 0; pos < 10; ++pos) {
+                if(max_count < count[pos]) {
+                    num = pos;
+                    max_count = count[pos];
+                }
             }
             MyList<int> *pred = new MyList<int>();
-            pred->push_back(max_count);
-            y_pred->getData()->push_back(pred);
+            pred->push_back(num);
+            y_pred.getData()->push_back(pred);
+            distance_list->~MyList();
+            label_list->~MyList();
         }
+        cout << endl;
         return y_pred;
     };
     double score(const Dataset& y_test, const Dataset& y_pred) {
@@ -525,8 +560,10 @@ public:
         List<List<int>*>* test_data = y_test.getData();
         List<List<int>*>* pred_data = y_pred.getData();
         for(int i = 0; i < test_count; ++i) {
-            if(test_data->get(i) == pred_data->get(i)) ++correct_count;
+            cout << test_data->get(i)->get(0) << " ";
+            if(test_data->get(i)->get(0) == pred_data->get(i)->get(0)) ++correct_count;
         }
+        cout << endl;
         return (double)correct_count / (double)test_count;
     };
 };
@@ -542,15 +579,6 @@ void train_test_split(Dataset& X, Dataset& y, double test_size,
     y_train = y.extract(0, train_set_count - 1, 0, -1);
     y_test = y.extract(train_set_count, -1, 0, -1);
 };
-
-double dist(const List<int>& a, const List<int>& b) {
-    double sum = 0.0;
-    int length = a.length();
-    for(int i = 0; i < length; ++i) {
-        sum += pow(a.get(i) - b.get(i), 2);
-    }
-    return sqrt(sum);
-}
 
 void myList_tester() {
     // MyList Test:
@@ -648,6 +676,10 @@ void kNN_tester() {
     cout << "X_train: " << nRows << "x" << nCols << endl;
     y_train.getShape(nRows, nCols);
     cout << "y_train: " << nRows << "x" << nCols << endl;
+    X_test.getShape(nRows, nCols);
+    cout << "X_test: " << nRows << "x" << nCols << endl;
+    y_test.getShape(nRows, nCols);
+    cout << "y_test: " << nRows << "x" << nCols << endl;
     knn.fit(X_train, y_train);
     Dataset y_pred = knn.predict(X_test);
     double accuracy = knn.score(y_test, y_pred);
